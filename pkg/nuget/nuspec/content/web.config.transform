@@ -1,0 +1,8 @@
+<configuration>
+  <elmah>
+    <errorLog type="Elmah.MongoErrorLog, Elmah.MongoDB" connectionStringName="elmah-mongodb"/>
+  </elmah>
+  <connectionStrings>
+    <add name="elmah-mongodb" connectionString="server=localhost;database=elmah;"/>
+  </connectionStrings>
+</configuration>
