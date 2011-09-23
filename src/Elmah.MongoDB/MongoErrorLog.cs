@@ -208,6 +208,7 @@ namespace Elmah
 			{
 				var id = document["_id"].AsObjectId.ToString();
 				var error = BsonSerializer.Deserialize<Error>(document);
+			  error.Time = error.Time.ToLocalTime();
 				errorEntryList.Add(new ErrorLogEntry(this, id, error));
 			}
 
