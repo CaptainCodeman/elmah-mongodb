@@ -211,7 +211,7 @@ namespace Elmah
 				errorEntryList.Add(new ErrorLogEntry(this, id, error));
 			}
 
-			return _collection.Count();
+			return (int) _collection.Count();
 		}
 
 		public static int GetCollectionLimit(IDictionary config)
