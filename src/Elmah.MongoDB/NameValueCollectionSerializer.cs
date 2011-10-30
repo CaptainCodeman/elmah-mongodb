@@ -15,6 +15,11 @@ namespace Elmah
 			get { return instance; }
 		}
 
+    public override object Deserialize(BsonReader bsonReader, Type nominalType, Type actualType, IBsonSerializationOptions options)
+    {
+      return Deserialize(bsonReader, nominalType, options);
+    }
+
 		public override object Deserialize(
 			BsonReader bsonReader,
 			Type nominalType,
