@@ -227,7 +227,7 @@ namespace Elmah
 			return int.TryParse((string)config["maxSize"], out result) ? result : DefaultMaxSize;
 		}
 
-		public static string GetConnectionString(IDictionary config)
+		public virtual string GetConnectionString(IDictionary config)
 		{
 #if !NET_1_1 && !NET_1_0
 			//
