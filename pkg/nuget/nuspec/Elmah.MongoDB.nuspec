@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
   <metadata>
     <id>elmah.mongodb</id>
-    <version>1.3.1</version>
+    <version>1.5</version>
     <title>ELMAH on MongoDB (requires manual config)</title>
     <authors>Simon Green</authors>
     <owners>Simon Green</owners>
@@ -12,10 +12,10 @@
     <description>ELMAH with configuration for getting started quickly on a MongoDB database as the error log. NB requires manual configuration.</description>
     <summary>ELMAH with configuration for getting started quickly on a MongoDB database as the error log. NB requires manual configuration.</summary>
     <language>en-US</language>
-    <tags>mssql elmah error logging unhandled exception</tags>
+    <tags>mongodb elmah error logging unhandled exception</tags>
     <dependencies>
-      <dependency id="elmah" version="1.2" />
-      <dependency id="mongocsharpdriver" version="1.3" />
+      <dependency id="elmah" version="1.2.2" />
+      <dependency id="mongocsharpdriver" version="1.5" />
     </dependencies>
   </metadata>
 </package>
