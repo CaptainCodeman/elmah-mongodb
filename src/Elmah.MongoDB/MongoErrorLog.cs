@@ -15,6 +15,7 @@ namespace Elmah
 		private readonly string _collectionName;
 		private readonly int _maxDocuments;
 		private readonly int _maxSize;
+		private MongoInsertOptions _mongoInsertOptions;
 
 		private MongoCollection<BsonDocument> _collection;
 
@@ -128,6 +129,7 @@ namespace Elmah
 				}
 
 				_collection = database.GetCollection(_collectionName);
+				_mongoInsertOptions = new MongoInsertOptions { CheckElementNames = false };
 			}
 		}
 
@@ -163,7 +165,7 @@ namespace Elmah
 			var id = ObjectId.GenerateNewId();
 			document.Add("_id", id);
 
-			_collection.Insert(document);
+			_collection.Insert(document, _mongoInsertOptions);
 
 			return id.ToString();
 		}
