@@ -30,9 +30,10 @@ namespace Elmah
 			bsonReader.ReadStartDocument();
 			while (bsonReader.ReadBsonType() != BsonType.EndOfDocument)
 			{
-				var name = bsonReader.ReadName().Replace("__period__", ".");
+				var name = bsonReader.ReadName();
+				var originalName = (name == "__null__") ? null : name.Replace("__period__", ".").Replace("__dollarsign__", "$");
 				var value = bsonReader.ReadString();
-				nvc.Add(name, value);
+				nvc.Add(originalName, value);
 			}
 			bsonReader.ReadEndDocument();
 			return nvc;
@@ -51,12 +52,14 @@ namespace Elmah
 			{
 				foreach (var key in nvc.AllKeys)
 				{
-					if (string.IsNullOrWhiteSpace(key))
-                    			{
-                        			continue;
-                    			}
+					var legalKey = key ?? "__null__";
+					legalKey = legalKey.Replace(".", "__period__");
+					if (legalKey.StartsWith("$"))
+					{
+						legalKey = "__dollarsign__" + legalKey.Substring(1);
+					}
 
-					bsonWriter.WriteString(key.Replace(".", "__period__"), nvc[key]);
+					bsonWriter.WriteString(legalKey, nvc[key]);
 				}
 			}
 			bsonWriter.WriteEndDocument();
