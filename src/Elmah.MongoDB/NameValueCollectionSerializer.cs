@@ -51,6 +51,11 @@ namespace Elmah
 			{
 				foreach (var key in nvc.AllKeys)
 				{
+					if (string.IsNullOrWhiteSpace(key))
+                    			{
+                        			continue;
+                    			}
+
 					bsonWriter.WriteString(key.Replace(".", "__period__"), nvc[key]);
 				}
 			}
