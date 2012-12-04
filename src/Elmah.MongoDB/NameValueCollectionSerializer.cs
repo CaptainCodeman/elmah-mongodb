@@ -51,7 +51,7 @@ namespace Elmah
 			{
 				foreach (var key in nvc.AllKeys)
 				{
-					if (string.IsNullOrWhiteSpace(key))
+					if (string.IsNullOrEmpty(key))
                     			{
                         			continue;
                     			}
