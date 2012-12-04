@@ -15,7 +15,7 @@
     <tags>mongodb elmah error logging unhandled exception</tags>
     <dependencies>
       <dependency id="elmah" version="1.2.2" />
-      <dependency id="mongocsharpdriver" version="1.5" />
+      <dependency id="mongocsharpdriver" version="1.7" />
     </dependencies>
   </metadata>
 </package>
