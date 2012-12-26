@@ -22,5 +22,5 @@ Here is an example configuration:
       <errorLog type="Elmah.MongoErrorLog, Elmah.MongoDB" connectionStringName="elmah-mongodb" maxSize="10485760" maxDocuments="10000"/>
     </elmah>
     <connectionStrings>
-      <add name="elmah-mongodb" connectionString="server=localhost;database=elmah;"/>
+      <add name="elmah-mongodb" connectionString="mongodb://localhost/elmah?w=0"/>
     </connectionStrings>
