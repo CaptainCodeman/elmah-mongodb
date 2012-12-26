@@ -1,24 +1,25 @@
-﻿using System;
-using System.Collections.Specialized;
-using MongoDB.Bson;
+﻿using MongoDB.Bson;
 using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
+using System;
+using System.Collections.Specialized;
 
 namespace Elmah
 {
 	public class NameValueCollectionSerializer : BsonBaseSerializer
 	{
 		private static readonly NameValueCollectionSerializer instance = new NameValueCollectionSerializer();
+
 		public static NameValueCollectionSerializer Instance
 		{
 			get { return instance; }
 		}
 
-    public override object Deserialize(BsonReader bsonReader, Type nominalType, Type actualType, IBsonSerializationOptions options)
-    {
-      return Deserialize(bsonReader, nominalType, options);
-    }
+		public override object Deserialize(BsonReader bsonReader, Type nominalType, Type actualType, IBsonSerializationOptions options)
+		{
+			return Deserialize(bsonReader, nominalType, options);
+		}
 
 		public override object Deserialize(
 			BsonReader bsonReader,
@@ -26,15 +27,26 @@ namespace Elmah
 			IBsonSerializationOptions options
 			)
 		{
+			var bsonType = bsonReader.GetCurrentBsonType();
+			if (bsonType == BsonType.Null)
+			{
+				bsonReader.ReadNull();
+				return null;
+			}
+
 			var nvc = new NameValueCollection();
-			bsonReader.ReadStartDocument();
+
+			bsonReader.ReadStartArray();
 			while (bsonReader.ReadBsonType() != BsonType.EndOfDocument)
 			{
-				var name = bsonReader.ReadName().Replace("__period__", ".");
-				var value = bsonReader.ReadString();
-				nvc.Add(name, value);
+				bsonReader.ReadStartArray();
+				var key = (string)StringSerializer.Instance.Deserialize(bsonReader, typeof(string), options);
+				var val = (string)StringSerializer.Instance.Deserialize(bsonReader, typeof(string), options);
+				bsonReader.ReadEndArray();
+				nvc.Add(key, val);
 			}
-			bsonReader.ReadEndDocument();
+			bsonReader.ReadEndArray();
+
 			return nvc;
 		}
 
@@ -45,21 +57,26 @@ namespace Elmah
 			IBsonSerializationOptions options
 			)
 		{
-			var nvc = (NameValueCollection)value;
-			bsonWriter.WriteStartDocument();
-			if (nvc != null && nvc.Count > 0)
+			if (value == null)
 			{
-				foreach (var key in nvc.AllKeys)
-				{
-					if (string.IsNullOrEmpty(key))
-                    			{
-                        			continue;
-                    			}
+				bsonWriter.WriteNull();
+				return;
+			}
 
-					bsonWriter.WriteString(key.Replace(".", "__period__"), nvc[key]);
+			var nvc = (NameValueCollection)value;
+
+			bsonWriter.WriteStartArray();
+			foreach (var key in nvc.AllKeys)
+			{
+				foreach (var val in nvc.GetValues(key))
+				{
+					bsonWriter.WriteStartArray();
+					StringSerializer.Instance.Serialize(bsonWriter, typeof(string), key, options);
+					StringSerializer.Instance.Serialize(bsonWriter, typeof(string), val, options);
+					bsonWriter.WriteEndArray();
 				}
 			}
-			bsonWriter.WriteEndDocument();
+			bsonWriter.WriteEndArray();
 		}
 	}
 }
