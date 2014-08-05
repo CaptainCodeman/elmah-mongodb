@@ -5,6 +5,8 @@ using MongoDB.Bson.Serialization.Serializers;
 using System;
 using System.Collections.Specialized;
 
+/*THIS CLASS HAS BEEN MODIFIED FROM ITS ORIGINAL FORM BY A NON-OWNER*/
+
 namespace Elmah
 {
 	public class NameValueCollectionSerializer : BsonBaseSerializer
@@ -57,23 +59,29 @@ namespace Elmah
 			IBsonSerializationOptions options
 			)
 		{
-			if (value == null)
+		    var nvc = value as NameValueCollection;
+			if (nvc == null)
 			{
 				bsonWriter.WriteNull();
 				return;
 			}
 
-			var nvc = (NameValueCollection)value;
-
 			bsonWriter.WriteStartArray();
 			foreach (var key in nvc.AllKeys)
 			{
-				foreach (var val in nvc.GetValues(key))
+				foreach (var val in nvc.GetValues(key) ?? new string[0])
 				{
 					bsonWriter.WriteStartArray();
 					StringSerializer.Instance.Serialize(bsonWriter, typeof(string), key, options);
-					StringSerializer.Instance.Serialize(bsonWriter, typeof(string), val, options);
-					bsonWriter.WriteEndArray();
+				    if (key.ToLower().Contains("password"))
+				    {
+				        StringSerializer.Instance.Serialize(bsonWriter, typeof (string), string.Empty, options);
+				    }
+				    else
+				    {
+                        StringSerializer.Instance.Serialize(bsonWriter, typeof(string), val, options);
+				    }
+				    bsonWriter.WriteEndArray();
 				}
 			}
 			bsonWriter.WriteEndArray();
