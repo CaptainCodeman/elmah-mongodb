@@ -3,6 +3,7 @@ using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
 using System;
+using System.Linq;
 using System.Collections.Specialized;
 
 namespace Elmah
@@ -15,12 +16,12 @@ namespace Elmah
             BsonDocument doc = new BsonDocument();
             if (value != null)
             {
-                foreach (var key in value.AllKeys)
+                foreach (var key in value.AllKeys.Distinct())
                 {
-                    foreach (var val in value.GetValues(key))
-                    {
+                    var val = value.GetValues(key).FirstOrDefault();
+                    if(val != null)
                         doc.Add(key.Replace('.','|'), val);
-                    }
+                    
                 }
             }
 

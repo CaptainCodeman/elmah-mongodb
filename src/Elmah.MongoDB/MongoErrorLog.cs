@@ -63,7 +63,7 @@ namespace Elmah
 
 			ApplicationName = appName;
 
-			_collectionName = appName.Length > 0 ? "Elmah-" + appName : "Elmah";
+			_collectionName = appName.Length > 0 ? "Elmah2-" + appName : "Elmah";
 			_maxDocuments = GetCollectionLimit(config);
 			_maxSize = GetCollectionSize(config);
 
