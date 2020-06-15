@@ -5,19 +5,22 @@ using System.Configuration;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
-using MongoDB.Driver.Builders;
-
+using System.Threading.Tasks;
+using System.Linq;
+using MongoDB.Bson.Serialization.Serializers;
 namespace Elmah
 {
 	public class MongoErrorLog : ErrorLog
 	{
 		private readonly string _connectionString;
 		private readonly string _collectionName;
-		private readonly int _maxDocuments;
-		private readonly int _maxSize;
-		private MongoInsertOptions _mongoInsertOptions;
+		private readonly long _maxDocuments;
+		private readonly long _maxSize;
+		//private MongoInsertOptions _mongoInsertOptions;
+        private readonly string _sortKey;
+        private readonly bool _useCappedCollection = true;
 
-		private MongoCollection<BsonDocument> _collection;
+        private IMongoCollection<ErrorModel> _collection;
 
 		private const int MaxAppNameLength = 60;
 		private const int DefaultMaxDocuments = int.MaxValue;
@@ -32,7 +35,7 @@ namespace Elmah
 		public MongoErrorLog(IDictionary config)
 		{
 			if (config == null)
-				throw new ArgumentNullException("config");
+				throw new ArgumentNullException(nameof(config));
 
 			var connectionString = GetConnectionString(config);
 
@@ -65,6 +68,8 @@ namespace Elmah
 			_collectionName = appName.Length > 0 ? "Elmah-" + appName : "Elmah";
 			_maxDocuments = GetCollectionLimit(config);
 			_maxSize = GetCollectionSize(config);
+            _sortKey = (string) config["sortKey"] ?? "$natural";
+            _useCappedCollection = !"false".Equals(((string) config["useCappedCollection"])?.ToLowerInvariant() ?? "false");
 
 			Initialize();
 		}
@@ -77,10 +82,10 @@ namespace Elmah
 		public MongoErrorLog(string connectionString)
 		{
 			if (connectionString == null)
-				throw new ArgumentNullException("connectionString");
+				throw new ArgumentNullException(nameof(connectionString));
 
 			if (connectionString.Length == 0)
-				throw new ArgumentException(null, "connectionString");
+				throw new ArgumentException(null, nameof(connectionString));
 
 			_connectionString = connectionString;
 
@@ -89,7 +94,7 @@ namespace Elmah
 
 		static MongoErrorLog()
 		{
-			BsonSerializer.RegisterSerializer(typeof(NameValueCollection), NameValueCollectionSerializer.Instance);
+            BsonSerializer.RegisterSerializer(typeof(NameValueCollection), new NameValueCollectionSerializer());
 			BsonClassMap.RegisterClassMap<Error>(cm =>
 			{
 				cm.MapProperty(c => c.ApplicationName);
@@ -116,43 +121,40 @@ namespace Elmah
 			{
 				var mongoUrl = MongoUrl.Create(_connectionString);
 				var mongoClient = new MongoClient(mongoUrl);
-				var server = mongoClient.GetServer();
-				var database = server.GetDatabase(mongoUrl.DatabaseName);
-				if (!database.CollectionExists(_collectionName))
+				//var server = mongoClient.GetServer();
+
+                var database = mongoClient.GetDatabase(mongoUrl.DatabaseName);
+                //var filter = new Filter(new BsonDocument("name", _collectionName));
+                var findThisOne = new ListCollectionsOptions
+                {
+                    Filter = Builders<BsonDocument>.Filter.Eq("name", _collectionName)
+                };
+                var cursor = database.ListCollectionsAsync(findThisOne).Result;
+                var list = cursor.ToListAsync().GetAwaiter().GetResult();
+                var allCollections = list.Select(c => c["name"].AsString).OrderBy(n => n).ToList();
+                if (!allCollections.Contains(_collectionName))
 				{
-					var options = CollectionOptions
-						.SetCapped(true)
-						.SetAutoIndexId(true)
-						.SetMaxSize(_maxSize);
+                    var options = new CreateCollectionOptions {Capped = _useCappedCollection, MaxSize = _maxSize};
 
-					if (_maxDocuments != int.MaxValue)
-						options.SetMaxDocuments(_maxDocuments);
-
-					database.CreateCollection(_collectionName, options);
+                    database.CreateCollectionAsync(_collectionName, options).GetAwaiter().GetResult();
 				}
 
-				_collection = database.GetCollection(_collectionName);
-				_mongoInsertOptions = new MongoInsertOptions { CheckElementNames = false };
+                _collection = database.GetCollection<ErrorModel>(_collectionName);
+				//_mongoInsertOptions = new MongoInsertOptions { CheckElementNames = false };
 			}
-		}
+        }
 
-		/// <summary>
-		/// Gets the name of this error log implementation.
-		/// </summary>
-		public override string Name
-		{
-			get { return "MongoDB Error Log"; }
-		}
+        /// <summary>
+        /// Gets the connection string used by the log to connect to the database.
+        /// </summary>
+        public virtual string ConnectionString => _connectionString;
 
-		/// <summary>
-		/// Gets the connection string used by the log to connect to the database.
-		/// </summary>
-		public virtual string ConnectionString
-		{
-			get { return _connectionString; }
-		}
+        /// <summary>
+        /// Gets the name of this error log implementation.
+        /// </summary>
+        public override string Name => "MongoDB Error Log";
 
-		/// <summary>
+        /// <summary>
 		/// Logs an error in log for the application.
 		/// </summary>
 		/// <param name="error"></param>
@@ -163,12 +165,13 @@ namespace Elmah
 				throw new ArgumentNullException("error");
 
 			error.ApplicationName = ApplicationName;
-			var document = error.ToBsonDocument();
+            var toStore = new ErrorModel();
+            
 
 			var id = ObjectId.GenerateNewId();
-			document.Add("_id", id);
-
-			_collection.Insert(document, _mongoInsertOptions);
+			toStore._id = id;
+            toStore.Error = error;
+			_collection.InsertOneAsync(toStore).GetAwaiter().GetResult();
 
 			return id.ToString();
 		}
@@ -184,14 +187,12 @@ namespace Elmah
 			if (id == null) throw new ArgumentNullException("id");
 			if (id.Length == 0) throw new ArgumentException(null, "id");
 
-			var document = _collection.FindOneById(new ObjectId(id));
+            var document = _collection.Find<ErrorModel>(x=> x._id == ObjectId.Parse(id)).SingleOrDefaultAsync().Result;
 
 			if (document == null)
 				return null;
 
-			var error = BsonSerializer.Deserialize<Error>(document);
-
-			return new ErrorLogEntry(this, id, error);
+			return new ErrorLogEntry(this, id, document.Error);
 		}
 
 		/// <summary>
@@ -207,17 +208,18 @@ namespace Elmah
 			if (pageIndex < 0) throw new ArgumentOutOfRangeException("pageIndex", pageIndex, null);
 			if (pageSize < 0) throw new ArgumentOutOfRangeException("pageSize", pageSize, null);
 
-			var documents = _collection.FindAll().SetSortOrder(SortBy.Descending("$natural")).SetSkip(pageIndex * pageSize).SetLimit(pageSize);
+			var documents = _collection.Find(new BsonDocument()).Sort($"{{{_sortKey}: -1}}").Skip(pageIndex * pageSize)
+                .Limit(pageSize).ToListAsync()
+                .GetAwaiter().GetResult();//.SetSortOrder(SortBy.Descending("$natural")).SetSkip(pageIndex * pageSize).SetLimit(pageSize);
 
 			foreach (var document in documents)
 			{
-				var id = document["_id"].AsObjectId.ToString();
-				var error = BsonSerializer.Deserialize<Error>(document);
-			  error.Time = error.Time.ToLocalTime();
-				errorEntryList.Add(new ErrorLogEntry(this, id, error));
+                var error = document.Error;
+			    error.Time = error.Time.ToLocalTime();
+				errorEntryList.Add(new ErrorLogEntry(this, document._id.ToString(), error));
 			}
 
-			return (int) _collection.Count();
+			return Convert.ToInt32(_collection.CountAsync(new BsonDocument()).Result);
 		}
 
 		public static int GetCollectionLimit(IDictionary config)
@@ -234,7 +236,6 @@ namespace Elmah
 
 		public virtual string GetConnectionString(IDictionary config)
 		{
-#if !NET_1_1 && !NET_1_0
 			//
 			// First look for a connection string name that can be 
 			// subsequently indexed into the <connectionStrings> section of 
@@ -252,7 +253,7 @@ namespace Elmah
 
 				return settings.ConnectionString ?? string.Empty;
 			}
-#endif
+
 
 			//
 			// Connection string name not found so see if a connection 
