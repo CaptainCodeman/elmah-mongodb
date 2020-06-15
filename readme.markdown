@@ -24,3 +24,16 @@ Here is an example configuration:
     <connectionStrings>
       <add name="elmah-mongodb" connectionString="mongodb://localhost/elmah?w=0"/>
     </connectionStrings>
+
+## Azure Cosmos Support
+Azure Cosmos is not 100% API compatible with MongoDB and as such requires some modifications to the behavior of this library in order to be compatible.
+
+These issues are known as of 6/14/2020:
+- Capped collections are not supported
+- $natural is not supported for sorting
+
+In order to work around these issues, use the following additional attributes to disable capped collection on collection creation and use the primary key for sorting:
+
+    <elmah>
+      <errorLog type="Elmah.MongoErrorLog, Elmah.MongoDB" connectionStringName="elmah-mongodb" maxSize="10485760" maxDocuments="10000" sortKey="_id" useCappedCollection="false"/>
+    </elmah>

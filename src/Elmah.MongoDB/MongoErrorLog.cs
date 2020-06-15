@@ -17,6 +17,8 @@ namespace Elmah
 		private readonly long _maxDocuments;
 		private readonly long _maxSize;
 		//private MongoInsertOptions _mongoInsertOptions;
+        private readonly string _sortKey;
+        private readonly bool _useCappedCollection = true;
 
         private IMongoCollection<ErrorModel> _collection;
 
@@ -33,7 +35,7 @@ namespace Elmah
 		public MongoErrorLog(IDictionary config)
 		{
 			if (config == null)
-				throw new ArgumentNullException("config");
+				throw new ArgumentNullException(nameof(config));
 
 			var connectionString = GetConnectionString(config);
 
@@ -63,9 +65,11 @@ namespace Elmah
 
 			ApplicationName = appName;
 
-			_collectionName = appName.Length > 0 ? "Elmah2-" + appName : "Elmah";
+			_collectionName = appName.Length > 0 ? "Elmah-" + appName : "Elmah";
 			_maxDocuments = GetCollectionLimit(config);
 			_maxSize = GetCollectionSize(config);
+            _sortKey = (string) config["sortKey"] ?? "$natural";
+            _useCappedCollection = !"false".Equals(((string) config["useCappedCollection"])?.ToLowerInvariant() ?? "false");
 
 			Initialize();
 		}
@@ -78,10 +82,10 @@ namespace Elmah
 		public MongoErrorLog(string connectionString)
 		{
 			if (connectionString == null)
-				throw new ArgumentNullException("connectionString");
+				throw new ArgumentNullException(nameof(connectionString));
 
 			if (connectionString.Length == 0)
-				throw new ArgumentException(null, "connectionString");
+				throw new ArgumentException(null, nameof(connectionString));
 
 			_connectionString = connectionString;
 
@@ -121,17 +125,16 @@ namespace Elmah
 
                 var database = mongoClient.GetDatabase(mongoUrl.DatabaseName);
                 //var filter = new Filter(new BsonDocument("name", _collectionName));
-                var findThisOne = new ListCollectionsOptions();
-                findThisOne.Filter = Builders<BsonDocument>.Filter.Eq("name", _collectionName);
+                var findThisOne = new ListCollectionsOptions
+                {
+                    Filter = Builders<BsonDocument>.Filter.Eq("name", _collectionName)
+                };
                 var cursor = database.ListCollectionsAsync(findThisOne).Result;
                 var list = cursor.ToListAsync().GetAwaiter().GetResult();
                 var allCollections = list.Select(c => c["name"].AsString).OrderBy(n => n).ToList();
                 if (!allCollections.Contains(_collectionName))
 				{
-					var options = new CreateCollectionOptions();
-                    options.Capped = true;
-                    options.AutoIndexId = true;
-                    options.MaxSize = _maxSize;
+                    var options = new CreateCollectionOptions {Capped = _useCappedCollection, MaxSize = _maxSize};
 
                     database.CreateCollectionAsync(_collectionName, options).GetAwaiter().GetResult();
 				}
@@ -139,25 +142,19 @@ namespace Elmah
                 _collection = database.GetCollection<ErrorModel>(_collectionName);
 				//_mongoInsertOptions = new MongoInsertOptions { CheckElementNames = false };
 			}
-		}
+        }
 
-		/// <summary>
-		/// Gets the name of this error log implementation.
-		/// </summary>
-		public override string Name
-		{
-			get { return "MongoDB Error Log"; }
-		}
+        /// <summary>
+        /// Gets the connection string used by the log to connect to the database.
+        /// </summary>
+        public virtual string ConnectionString => _connectionString;
 
-		/// <summary>
-		/// Gets the connection string used by the log to connect to the database.
-		/// </summary>
-		public virtual string ConnectionString
-		{
-			get { return _connectionString; }
-		}
+        /// <summary>
+        /// Gets the name of this error log implementation.
+        /// </summary>
+        public override string Name => "MongoDB Error Log";
 
-		/// <summary>
+        /// <summary>
 		/// Logs an error in log for the application.
 		/// </summary>
 		/// <param name="error"></param>
@@ -211,7 +208,7 @@ namespace Elmah
 			if (pageIndex < 0) throw new ArgumentOutOfRangeException("pageIndex", pageIndex, null);
 			if (pageSize < 0) throw new ArgumentOutOfRangeException("pageSize", pageSize, null);
 
-			var documents = _collection.Find(new BsonDocument()).Sort("{$natural: -1}").Skip(pageIndex * pageSize)
+			var documents = _collection.Find(new BsonDocument()).Sort($"{{{_sortKey}: -1}}").Skip(pageIndex * pageSize)
                 .Limit(pageSize).ToListAsync()
                 .GetAwaiter().GetResult();//.SetSortOrder(SortBy.Descending("$natural")).SetSkip(pageIndex * pageSize).SetLimit(pageSize);
 
